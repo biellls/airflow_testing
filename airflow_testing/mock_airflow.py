@@ -4,6 +4,8 @@ import tempfile
 import jinja2
 
 from importlib import reload
+
+import pytest
 from airflow.utils.db import initdb
 from airflow import configuration
 from airflow import settings
@@ -33,6 +35,7 @@ class IncorrectEnvironment(Exception):
 
 
 @contextlib.contextmanager
+@pytest.fixture
 def mock_airflow():
     with tempfile.TemporaryDirectory() as temp_dir:
         cfg_path = os.path.join(temp_dir, 'airflow.cfg')
