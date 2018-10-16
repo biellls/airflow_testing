@@ -3,6 +3,13 @@ import os
 import tempfile
 import jinja2
 
+from importlib import reload
+from airflow.utils.db import initdb
+from airflow import configuration
+from airflow import settings
+from airflow import models
+from airflow.utils.db import merge_conn
+
 
 @contextlib.contextmanager
 def set_env(**environ):
@@ -21,6 +28,10 @@ def set_env(**environ):
         os.environ.update(old_environ)
 
 
+class IncorrectEnvironment(Exception):
+    pass
+
+
 @contextlib.contextmanager
 def mock_airflow():
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -32,8 +43,13 @@ def mock_airflow():
             f.write(airflow_config)
 
         with set_env(AIRFLOW_HOME=temp_dir):
+            reload(configuration)
+            reload(settings)
+
+            if configuration.AIRFLOW_HOME != temp_dir:
+                raise IncorrectEnvironment('Airflow is not executing inside sandbox. Something went wrong.')
+
             print(f'Initialising temporary airflow db in {db_path}')
-            from airflow.utils.db import initdb
             initdb()
 
             yield
@@ -50,7 +66,4 @@ def render_config(db_path: str, airflow_home: str) -> str:
 
 
 def set_connection(conn: dict):
-    from airflow import models
-    from airflow.utils.db import merge_conn
-
     merge_conn(models.Connection(**conn))
