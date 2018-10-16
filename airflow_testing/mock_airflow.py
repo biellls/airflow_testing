@@ -1,12 +1,7 @@
 import contextlib
 import os
 import tempfile
-from unittest.mock import patch
-
 import jinja2
-from airflow import configuration, settings
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, scoped_session
 
 
 @contextlib.contextmanager
@@ -26,18 +21,6 @@ def set_env(**environ):
         os.environ.update(old_environ)
 
 
-def make_fake_conf_get(airflow_home, sql_alchemy_conn):
-    def fake_conf_get(section, key, **kwargs):
-        if section == 'core' and key == 'AIRFLOW_HOME':
-            return airflow_home
-        elif section == 'core' and key == 'SQL_ALCHEMY_CONN':
-            return sql_alchemy_conn
-        else:
-            return configuration.get(section, key, **kwargs)
-
-    return fake_conf_get
-
-
 @contextlib.contextmanager
 def mock_airflow():
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -48,25 +31,9 @@ def mock_airflow():
         with open(cfg_path, 'w') as f:
             f.write(airflow_config)
 
-        # with set_env(AIRFLOW_HOME=temp_dir), patch('airflow.configuration.get') as conf_get_mock:
         with set_env(AIRFLOW_HOME=temp_dir):
-            # conf_get_mock.side_effect = make_fake_conf_get(
-            #     airflow_home=temp_dir,
-            #     sql_alchemy_conn=f'sqlite:///{db_path}')
             print(f'Initialising temporary airflow db in {db_path}')
             from airflow.utils.db import initdb
-            settings.AIRFLOW_HOME = temp_dir
-            settings.SQL_ALCHEMY_CONN = f'sqlite:///{db_path}'
-
-            engine_args = {
-                # 'pool_size': configuration.getint('core', 'SQL_ALCHEMY_POOL_SIZE'),
-                # 'pool_recycle': configuration.getint('core',
-                #                                      'SQL_ALCHEMY_POOL_RECYCLE')
-            }
-
-            engine = create_engine(settings.SQL_ALCHEMY_CONN, **engine_args)
-            settings.Session = scoped_session(
-                sessionmaker(autocommit=False, autoflush=False, bind=engine))
             initdb()
 
             yield
@@ -87,11 +54,3 @@ def set_connection(conn: dict):
     from airflow.utils.db import merge_conn
 
     merge_conn(models.Connection(**conn))
-
-# if __name__ == '__main__':
-#     with mock_airflow():
-#         Variable.set('var_a', 'value_a')
-#         set_connection({'conn_id': 'my_test_connection', 'login': 'aaa', 'password': 'pwd'})
-#         # dag = DAG(dag_id='example_dag')
-#         conn = BaseHook.get_connection('my_test_connection')
-#         pass
